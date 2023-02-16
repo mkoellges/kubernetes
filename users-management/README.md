@@ -6,6 +6,7 @@
 NAMESPACE="finance"
 USER="john"
 GROUP="finance-dept"
+DNS_NAME="kubernetes.docker.internal"
 
 kubectl create ns ${NAMESPACE}
 ```
@@ -31,20 +32,22 @@ scp root@servername:/etc/kubernetes/pki/ca.key ca.key
 kubectl cp kube-apiserver-docker-desktop://run/config/pki/ca.key -n kube-system ca.key
 
 # create certificate
-openssl x509 -req -in ${USER}.key -CA ca.crt -CAkey ca.key -CAcreateserial -out ${USER}.crt -days 365
+openssl req -x509 -sha256 -in ${USER}.key -CA ca.crt -CAkey ca.key -CAcreateserial -out ${USER}.crt -days 365
+
+openssl req -x509 -days 365 -key ${USER}.key -in ${USER}.csr -out ${USER}.crt 
 ```
 
 ## Create kubeconfig file
 
 ```sh
 # create the configfile
-kubectl --kubeconfig ${USER}.kubeconfig set-cluster kubernetes --server https://${DNS_NAME}:6443 --certificate-authority=ca.crt
+kubectl config --kubeconfig ${USER}.kubeconfig set-cluster kubernetes --server https://${DNS_NAME}:6443 --certificate-authority=ca.crt
 
 # add the user
-kubectl --kubeconfig ${USER}.kubeconfig config set-credentials ${USER} --client-certificate=${PWD}/${USER}.crt --client-jey=${PWD}/${USER}.key
+kubectl config --kubeconfig ${USER}.kubeconfig set-credentials ${USER} --client-certificate=$(cat ${PWD}/${USER}.crt | base64) --client-key=$(cat ${PWD}/${USER}.key | base64)
 
 # set the context
-kubectl --kubeconfig ${USER}.kubeconfig config set-context ${USER}-kubernetes --namespace ${NAMESPACE} --user ${USER}
+kubectl config --kubeconfig ${USER}.kubeconfig set-context ${USER}-kubernetes --cluster=kubernetes --namespace ${NAMESPACE} --user ${USER}
 
 # TODO: check current-context
 
